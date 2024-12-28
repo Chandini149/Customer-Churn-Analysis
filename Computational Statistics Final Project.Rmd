@@ -1,0 +1,681 @@
+---
+title: 'Understanding Customer Churn in Banking : A Data-Driven Exploration'
+subtitle: 'MATH 40024/50024: Computational Statistics'
+date: "December 10, 2023"
+output:
+  html_document:
+    df_print: paged
+fontfamily: mathpazo
+fontsize: 11pt
+header-includes: \linespread{1.05}
+urlcolor: blue
+---
+
+## Introduction
+
+Customer churn, the departure of clients from a bank's services, presents a significant challenge in the financial sector. This study aims to discern the underlying factors contributing to customer attrition by employing analytical methods on the "Customer_Churn_Records.csv" dataset. The objective is to leverage data analytics to comprehend why customers discontinue their relationship with the bank and potentially predict future churn instances.
+
+#### Dataset Overview
+
+The dataset "Customer_Churn_Records.csv," comprises various variables pertaining to 10,000 customers of a bank with no missing values. It is taken from the website "Kaggle".The attributes such as CustomerID, Surname, and RowNumber were removed out of 18 variables as they did not contribute significantly to the analysis. The remaining attributes provide insights into customer demographics, financial details, and tenure. 
+
+Churn Status: The target variable, 'Exited,' represents customer churn, providing a binary classification for analysis.
+
+By applying data-driven computational methods to this dataset, I aim to uncover patterns, relationships, and influential factors contributing to customer churn, enabling informed decision-making and strategies for customer retention.
+
+
+#### Research Objectives:
+
+#### 1. Determining Churn Drivers
+
+This analysis likely aims to explore and analyze factors contributing to customer churn, encompassing diverse aspects such as demographics, financial behavior, product engagement, satisfaction levels, and engagement with services. The dataset could be utilized to identify patterns, correlations, and predictive indicators related to customer churn, ultimately aiding in the development of strategies to enhance customer retention and reduce churn rates within the specific context of the service or product offered.
+
+#### 2. Predictive Modeling
+
+The goal is to construct predictive model utilizing available demographic and banking variables. This model aims to forecast potential churn cases, empowering proactive intervention strategies.
+
+#### Why Data-Driven computational Approach?
+
+The data-driven, computational approach is highly advantageous for analyzing the "Customer_Churn_Records.csv" dataset due to its diverse variables and the objective of understanding customer attrition. Computational methods excel in uncovering complex relationships among demographics, financial behaviors, satisfaction scores, and churn indicators present in the dataset. Leveraging these techniques allows the development of predictive models that forecast churn based on attributes like age, geography, and product usage. Furthermore, computational analysis enables the identification of critical factors influencing churn, such as customer satisfaction and tenure, essential for tailoring effective retention strategies. With its ability to efficiently handle large datasets and provide quantifiable insights, this approach ensures the creation of robust models and iterative improvements, supporting informed decision-making to mitigate churn and enhance customer retention efforts.
+
+
+## Computational Methods
+
+#### The analytical process involves the following steps:
+
+#### Data Preparation:
+
+Data Exploration: Initial examination and understanding of the dataset's structure and contents.
+
+Data Cleaning: Addressing inconsistencies, handling missing values, and ensuring data integrity.
+
+Feature Engineering: Deriving new insights by transforming and enhancing existing variables.
+
+#### Analytical Techniques:
+
+Exploratory Data Analysis (EDA):
+
+Visualizations: Utilization of graphical representations to uncover patterns and insights.
+
+Correlation Analysis: To Examine relationships between various factors to unveil potential churn influencers.
+
+Chi-square test: To check if there exists a statistically significant association between categorical variables (e.g., geography, card type, gender) and the occurrence of churn.
+
+t-tests: to evaluate whether there exist statistically significant differences in numerical variables (e.g., Tenure) between churn and non-churn groups.
+
+#### Predictive Modeling with K-Fold Cross-Validation
+
+Model Development: Utilizing Logistic Regression to construct predictive models for customer churn based on available attributes.
+
+K-Fold Cross-Validation: Implementing k-fold cross-validation (k=10) to assess the model's performance robustness.
+
+#### Evaluation Metrics:
+
+To assess the efficacy of analyses and predictive models, the following metrics are employed:
+
+Accuracy and Precision: Gauging overall correctness and reliability of predictive models.
+
+Recall: Assessing the ratio of correctly predicted churn cases among actual churn instances.
+
+F1-Score: Providing a balanced measure of model performance via harmonic mean of precision and recall.
+
+ROC-AUC: Evaluating the model's ability to distinguish between churn and non-churn instances.
+
+Confusion Matrix.
+
+
+## Data Analysis and Results
+
+
+```{r message=FALSE, include=FALSE}
+
+# loading the required libraries
+
+library(tidyverse)
+library(caret)
+library(pROC)
+library(corrplot)
+library(rsample)
+library(reshape2)
+library(gridExtra)
+
+#  Data Wrangling
+
+bank = read.csv("C:\\Users\\chand\\Downloads\\Customer-Churn-Records.csv") # importing the dataset
+head(bank)
+str(bank)
+summary(bank)
+sum(duplicated(bank))
+bank = bank[, !(names(bank) %in% c("CustomerId", "Surname", "RowNumber"))] # removing unnecessary variables that are not useful for analysis.
+head(bank)
+sum(is.na(bank))
+names(bank)
+
+# Encoding Categorical Varibales into factors
+
+bank$Gender = as.factor(bank$Gender)
+bank$Geography = as.factor(bank$Geography)
+
+str(bank)
+
+```
+
+
+#### Exploratory Data Analysis: Understanding Variables
+
+
+
+#### Distribution of Customer Churn in Dataset - "Exited" - Target Variable
+
+```{r message = FALSE, echo=FALSE}
+# Bar plot to check distribution of "Exited" variable - Target Variable
+churn_counts = bank %>%
+  count(Exited) %>%
+  mutate(percent = prop.table(n) * 100)
+ggplot(churn_counts, aes(x = factor(Exited), y = percent, fill = factor(Exited))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(percent, 1), "%")), position = position_stack(vjust = 0.5)) +
+  labs(title = "Percentage of Churn Distribution", x = "Customer Churn", y = "Percentage") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal()
+
+```
+
+
+In the total dataset, approximately 20.4% of customers experienced churn, while the remaining 79.6% did not. This disparity in percentages indicates an imbalance within the dataset regarding customer churn, with a significantly higher proportion of customers not churning compared to those who did.
+
+
+
+#### Visualizing Numerical and Categorical Variables
+
+
+
+```{r warning=FALSE, echo=FALSE}
+# Plotting Numerical Variables
+# Selecting only numeric variables for visualization
+numerical_vars = bank %>% select_if(is.numeric)
+
+# Combining numerical data for plotting
+numerical_comb = numerical_vars %>%
+  gather(variable, value)
+
+# Create a histogram for all numerical variables in a single plot
+num_hist = ggplot(numerical_comb, aes(x = value)) +
+  geom_histogram(fill = "skyblue", color = "black", bins = 20) +
+  facet_wrap(~variable, scales = "free") +
+  labs(title = "Histograms of Numerical Variables")
+
+# Display the combined histogram
+#print(num_hist)
+
+# Plotting Categorical Variables
+
+# Selecting only categorical variables for visualization
+categorical_vars = bank %>% select_if(is.factor)
+
+# Gathering categorical variables for visualization
+categorical_gathered = categorical_vars %>%
+  gather(variable, value) 
+
+# Create bar plots for each categorical variable
+cat_plots = ggplot(categorical_gathered, aes(x = value)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  facet_wrap(~ variable, scales = "free") +
+  labs(title = "Distribution of Categorical Variables")
+
+# Show the combined bar plots
+#print(cat_plots)
+grid = grid.arrange(num_hist, cat_plots, ncol = 2)
+
+```
+
+These visualizations provide a comprehensive overview of the key attributes, aiding in identifying trends and potential patterns across various customer demographics and behaviors.
+
+#### Inference
+
+CreditScore displays a somewhat normal spread, while Age and Tenure show uniform distributions. Balance skews right, indicating more customers with lower balances. NumOfProducts mostly involves 1 or 2 products, and HasCrCard represents credit card ownership. IsActiveMember indicates customer activity. Exited shows churned vs. retained customers, and Complain highlights complaint instances. Satisfaction Score ranges from 1 to 5, Points Earned tracks loyalty points, and Estimated Salary shows income distribution. Customer distributions across Geography, indicating varying populations across France, Germany, and Spain. Gender distribution highlights the representation of Female and Male customers within the dataset.
+
+
+#### Customer Churn Patterns
+
+
+```{r echo=FALSE}
+
+churn_counts_gender = bank %>%
+  count(Gender, Exited) %>%
+  mutate(percent = prop.table(n) * 100)
+a = ggplot(churn_counts_gender, aes(x = Gender, y = percent, fill = factor(Exited))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(percent, 1), "%")), position = position_stack(vjust = 0.5)) +
+  labs(title = "Churn Rate by Gender", x = "Churn Distribution", y = "Percentage") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal()
+
+churn_counts_geography <- bank %>%
+  count(Geography, Exited) %>%
+  mutate(percent = prop.table(n) * 100)
+
+b = ggplot(churn_counts_geography, aes(x = factor(Geography), y = percent, fill = factor(Exited))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(percent, 1), "%")), position = position_stack(vjust = 0.5)) +
+  labs(title = "Churn Distribution by Geography", x = "Geography", y = "Percentage") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal()
+
+churn_counts_hasCrCard <- bank %>%
+  count(HasCrCard, Exited) %>%
+  mutate(percent = prop.table(n) * 100)
+
+c = ggplot(churn_counts_hasCrCard, aes(x = factor(HasCrCard), y = percent, fill = factor(Exited))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(percent, 1), "%")), position = position_stack(vjust = 0.5)) +
+  labs(title = "Churn Distribution by Credit Card Status", x = "Has Credit Card", y = "Percentage") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal()
+
+churn_counts_isActiveMember <- bank %>%
+  count(IsActiveMember, Exited) %>%
+  mutate(percent = prop.table(n) * 100)
+
+d = ggplot(churn_counts_isActiveMember, aes(x = factor(IsActiveMember), y = percent, fill = factor(Exited))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(percent, 1), "%")), position = position_stack(vjust = 0.5)) +
+  labs(title = "Churn Distribution by Active Status", x = "Is Active Member?", y = "Percentage") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal()
+
+
+
+#grid = grid.arrange(a, b, c, d, ncol = 2)
+
+```
+
+```{r echo=FALSE}
+
+
+churn_counts_complain <- bank %>%
+  count(Complain, Exited) %>%
+  mutate(percent = prop.table(n) * 100)
+
+e = ggplot(churn_counts_complain, aes(x = factor(Complain), y = percent, fill = factor(Exited))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(percent, 1), "%")), position = position_stack(vjust = 0.5)) +
+  labs(title = "Churn Distribution by Complaint Status", x = "Complaint Filed", y = "Percentage") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_discrete(name = "Exited", labels = c("Retained", "Churned")) +
+  theme_minimal()
+
+churn_counts_point_earned <- bank %>%
+  count(PointBins = cut(Point.Earned, breaks = seq(min(Point.Earned), max(Point.Earned), length.out = 6)), Exited) %>%
+  mutate(percent = prop.table(n) * 100)
+
+f = ggplot(churn_counts_point_earned, aes(x = PointBins, y = percent, fill = factor(Exited))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_text(aes(label = paste0(round(percent, 1), "%")), position = position_dodge(width = 0.9), vjust = -0.5) +
+  labs(title = "Churn Distribution by Points Earned", x = "Points Earned Bins", y = "Percentage") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_discrete(name = "Exited", labels = c("Retained", "Churned")) +
+  theme_minimal()
+
+churn_counts_satisfaction_score <- bank %>%
+  count(Satisfaction.Score, Exited) %>%
+  mutate(percent = prop.table(n) * 100)
+
+g = ggplot(churn_counts_satisfaction_score, aes(x = factor(Satisfaction.Score), y = percent, fill = factor(Exited))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_text(aes(label = paste0(round(percent, 1), "%")), position = position_dodge(width = 0.9), vjust = -0.5) +
+  labs(title = "Churn Distribution by Satisfaction Score", x = "Satisfaction Score", y = "Percentage") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_discrete(name = "Exited", labels = c("Retained", "Churned")) +
+  theme_minimal()
+
+churn_counts_card_type <- bank %>%
+  count(Card.Type, Exited) %>%
+  mutate(percent = prop.table(n) * 100)
+
+h = ggplot(churn_counts_card_type, aes(x = factor(Card.Type), y = percent, fill = factor(Exited))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(percent, 1), "%")), position = position_stack(vjust = 0.5)) +
+  labs(title = "Churn Distribution by Card Type", x = "Card Type", y = "Percentage") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_discrete(name = "Exited", labels = c("Retained", "Churned")) +
+  theme_minimal()
+
+
+
+grid1 = grid.arrange(a, b, c, d, ncol = 2)
+grid2 = grid.arrange(e, f, g, h, ncol = 2)
+
+
+```
+
+
+
+#### Pivotal insights due to multiple facets affecting customer churn:
+
+Geographically, France dominates the customer base, but regions with fewer customers experience higher churn, suggesting potential service issues. Gender-wise, females exhibit higher churn rates than males, indicating possible gender-related factors impacting churn behavior. While credit card ownership among churned customers is notable, further investigation is required to understand its true effect on churn. Inactive members contribute significantly to high churn rates, emphasizing the need for targeted engagement strategies. Additionally, lodged complaints coincide with increased churn, pointing to a correlation between complaints and customer attrition. Interestingly, points earned and card types show varied impacts on churn, highlighting the complexity of factors influencing customer retention. However, higher satisfaction scores are consistently linked with lower churn rates, underscoring the importance of customer satisfaction in fostering loyalty and reducing churn.
+
+
+
+```{r echo=FALSE}
+
+
+# Selecting specified numerical variables for visualization
+selected_variables <- c("CreditScore", "Age", "Tenure", "Balance", "NumOfProducts", "EstimatedSalary")
+
+# Subset the data for selected variables and Exited
+selected_data <- bank %>%
+  select(all_of(selected_variables), Exited)
+
+# Melt the data for boxplot
+selected_data_long <- melt(selected_data, id.vars = "Exited")
+
+# Plotting boxplots for each variable with respect to churn
+ggplot(selected_data_long, aes(x = variable, y = value, fill = factor(Exited))) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Numerical Variables by Churn Status", x = "Variables", y = "Values") +
+  facet_wrap(~ variable, scales = "free") +
+  theme_minimal()
+
+```
+
+
+Analysis of credit scores didn't reveal distinct differences between churned and retained customers. In contrast, age emerged as a significant factor, with older customers showing a higher tendency to churn compared to younger ones. Additionally, tenure played a crucial role, indicating that both short and lengthy tenures relate to increased churn, emphasizing the need to focus on retaining customers at extreme tenure periods. Surprisingly, customers with substantial bank balances exhibited a probability to churn, posing potential risks to the bank's available capital. However, factors like the number of products held or estimated salary did not seem to notably impact the likelihood of churn, indicating their lesser influence on customer attrition within the dataset.
+
+
+#### Impact of Complaint Lodging on Customer Tenure in Churn Analysis
+
+```{r echo=FALSE}
+# visualization to explore the relationship between tenure and complaint lodging 
+ggplot(bank, aes(x = Complain, y = Tenure, fill = factor(Exited))) +
+  geom_boxplot() +
+  labs(title = "Relationship between Tenure and Complaint Lodging", x = "Complaint Lodged", y = "Tenure")
+
+```
+
+
+Customers not filing complaints (Complain = 0) show consistent tenure regardless of churn. Churned customers who complained (Complain = 1, Exited = 1) exhibit slightly lower median tenure. Those churned with complaints display a wider tenure range than non-churned complainers.
+
+
+#### Churn Analysis by Tenure Group
+
+```{r echo=FALSE}
+# Calculate churn rates within each tenure group
+short_tenure_churn_rate <- mean(bank$Exited[bank$Tenure <= 3]==1, na.rm = TRUE)*100
+#short_tenure_churn_rate
+medium_tenure_churn_rate <- mean(bank$Exited[bank$Tenure > 3 & bank$Tenure <= 5]==1,  na.rm = TRUE)*100
+#medium_tenure_churn_rate
+long_tenure_churn_rate <- mean(bank$Exited[bank$Tenure > 5]==1,  na.rm = TRUE)*100
+#long_tenure_churn_rate
+
+
+# Create a bar plot for churn rates by tenure groups
+tenure_groups <- c("Short Tenure", "Medium Tenure", "Long Tenure")
+churn_rates <- c(short_tenure_churn_rate, medium_tenure_churn_rate, long_tenure_churn_rate)
+
+barplot(churn_rates, names.arg = tenure_groups, col = rainbow(length(churn_rates)),
+        main = "Churn Rates by Tenure Groups", xlab = "Tenure Group", ylab = "Churn Rate")
+
+# Create a contingency table for churn and tenure
+table_churn_tenure <- table(bank$Exited, cut(bank$Tenure, breaks = c(0, 3, 5, 10)))
+
+# Perform a chi-squared test for independence
+chi_test <- chisq.test(table_churn_tenure)
+#chi_test
+
+
+```
+
+
+Churn rates show a slight decline with longer tenure, indicating lower churn among long-term customers. Shorter tenure correlates with slightly higher churn. Pearson's Chi-squared test (p-value = 0.4077) suggests no significant relationship between churn and tenure categories.
+
+
+```{r include=FALSE}
+
+t.test(bank$Tenure ~ bank$Complain)
+t.test(bank$Tenure ~ bank$Exited)
+
+```
+
+
+#### Comparing Tenure Across Customer Complaints and Churn Status 
+
+The conducted t-tests comparing tenure based on complaint filing and churn status suggest that there might not be a substantial difference in tenure duration concerning customers who lodged a complaint or those who churned
+
+
+#### Interaction Effects and Feature Engineering
+
+The following interaction terms were created to see their effect on churning
+
+Age_ActiveMember, Balance_NumOfProducts, Balance_EstimatedSalary_Ratio
+
+```{r include=FALSE, echo=FALSE}
+# Interaction Effects
+bank$Age_ActiveMember = bank$Age * bank$IsActiveMember
+bank$Balance_NumOfProducts = bank$Balance * bank$NumOfProducts
+bank$Balance_EstimatedSalary_Ratio = bank$Balance / bank$EstimatedSalary
+
+summary(bank[c("Age_ActiveMember", "Balance_NumOfProducts", "Balance_EstimatedSalary_Ratio")])
+str(bank)
+
+```
+
+
+```{r warning=FALSE, echo=FALSE}
+
+# Plotting Age_ActiveMember against Exited
+a = ggplot(bank, aes(x = Exited, y = Age_ActiveMember, fill = factor(Exited))) +
+  geom_boxplot() +
+  labs(title = "Effect of Age_ActiveMember on Exited", x = "Exited", y = "Age_ActiveMember")
+
+# Plotting Balance_NumOfProducts against Exited
+b = ggplot(bank, aes(x = Exited, y = Balance_NumOfProducts, fill = factor(Exited))) +
+  geom_boxplot() +
+  labs(title = "Effect of Balance_NumOfProducts on Exited", x = "Exited", y = "Balance_NumOfProducts")
+
+c = ggplot(bank, aes(x = Exited, y = Balance_EstimatedSalary_Ratio, fill = factor(Exited))) +
+  geom_boxplot() +
+  labs(title = "Effect of Balance_EstimatedSalary_Ratio on Exited", x = "Exited", y = "Balance_EstimatedSalary_Ratio")
+
+grid = grid.arrange(a,b,c, ncol = 2)
+
+
+```
+
+
+#### Inference on Interaction term's Effects for Churn
+
+
+The derived interaction variables, particularly Age_ActiveMember and Balance_NumOfProducts, suggest potential in distinguishing between churned and retained customers. These variables could influence churn prediction, hinting that customers with higher values in these derived features might exhibit a slightly elevated propensity to churn.
+
+
+#### Correlation Analysis for Churn Prediction
+
+```{r echo=FALSE}
+
+# Correlation Analysis
+# Selecting both numerical 
+correlation_data = bank %>% select_if(function(x) is.numeric(x))
+correlation_matrix = cor(correlation_data)
+#correlation_matrix 
+corrplot(correlation_matrix, method = "color", type = "upper", tl.cex = 0.7, addCoef.col = "black", number.cex = 0.5)
+
+```
+
+
+
+Age exhibits a moderate positive correlation with the likelihood of churning. Variables such as IsActiveMember and NumOfProducts display moderate negative correlations, indicating that active members and customers with more products are less inclined to churn. A stronger correlation is observed between the Complain variable and Exited, requiring further investigation to ascertain its significance regarding churn. Engineered features like Balance_NumOfProducts and Balance_EstimatedSalary_Ratio show slight positive correlations with Exited.
+
+
+#### Inference on Chi-Square Tests for Churn Analysis
+
+
+```{r warning=FALSE, echo=FALSE}
+
+# Perform chi-square test between 'Card.Type' and 'Exited'
+chisq.test(table(bank$Card.Type, bank$Exited))
+
+# Perform chi-square test between 'Geography' and 'Exited'
+chisq.test(table(bank$Geography, bank$Exited))
+
+# Perform chi-square test between 'Complain' and 'Exited'
+chisq.test(table(bank$Complain, bank$Exited))
+
+# Perform chi-square test between 'NumOfProducts' and 'Exited' 
+chisq.test(table(bank$NumOfProducts, bank$Exited))
+
+# Perform chi-square test between 'PointBins' and 'Exited'
+chisq.test(table(bank$Point.Earned, bank$Exited))
+
+
+
+
+```
+
+
+
+
+A significant relationship exists between 'Geography' and 'Exited', suggesting that Geography notably influences customer churn. 'Complain' and 'Exited' showcase a highly significant relationship, indicating that customers who lodged complaints tend to churn significantly more than those who haven't. 'Number of Products' held by a customer displays a significant relationship with 'Exited', indicating an impact on customer churn based on the number of products. No significant relationship is found between 'Points Earned' and 'Exited', implying a lack of substantial influence on churn.
+
+
+
+## Modelling
+
+```{r warning=FALSE, include=FALSE}
+bank_model_interaction <- glm(Exited ~ . + Tenure:Complain, data = bank, family = "binomial")
+summary(bank_model_interaction)
+
+```
+
+
+#### Significant Predictors
+
+The model reveals 'Age' and 'Complain' as statistically significant predictors (p < 0.05), indicating their substantial impact on the likelihood of a customer exiting the bank. Moreover, neither the tenure of a customer nor the interaction between tenure and lodging complaints seem to significantly predict or explain customer churn.
+
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+
+# Split your data into training and testing sets
+set.seed(123)  # Setting seed for reproducibility
+train_indices <- sample(nrow(bank), 0.8 * nrow(bank))  # 80% for training
+train_data <- bank[train_indices, ]
+test_data <- bank[-train_indices, ]
+
+# Fit a logistic regression model on the training data
+model <- glm(Exited ~ ., data = train_data, family = "binomial")
+
+# Make predictions on the test set
+preds <- predict(model, newdata = test_data, type = "response")
+binary_preds <- ifelse(preds > 0.5, 1, 0)
+
+# Confusion matrix
+conf_matrix <- confusionMatrix(factor(test_data$Exited), factor(binary_preds))
+
+# Traditional metrics
+accuracy <- conf_matrix$overall["Accuracy"]
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1_score <- conf_matrix$byClass["F1"]
+roc_obj <- roc(test_data$Exited, preds)
+roc_auc <- auc(roc_obj)
+
+# Print or use the metrics as needed
+#print(conf_matrix)
+paste("Evaluation Metrics of Logistic Regression Model are: ")
+print(paste("Accuracy:", accuracy))
+print(paste("Precision:", precision))
+print(paste("Recall:", recall))
+print(paste("F1-Score:", f1_score))
+print(paste("ROC-AUC:", roc_auc))
+
+```
+
+#### Performance Metrics of Logistic Regression Model
+
+The logistic regression model exhibits high performance across various evaluation metrics: Accuracy of 99.8%, Precision of 99.75%, Recall of 100%, F1-Score of 99.87%, and an impressive ROC-AUC of 99.92%. These metrics collectively indicate the model's robustness and effectiveness in predicting customer churn.
+
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+# Create an rsample object
+bank_split = vfold_cv(bank, v = 10, strata = "Exited")  # 'v' specifies the number of folds
+
+# Initialize empty lists to store confusion matrices and AUC values for each fold
+confusion_matrices = list()
+auc_values = numeric()
+precision_values = numeric()
+recall_values = numeric()
+f1_score_values = numeric()
+accuracy_values = numeric()
+
+# Perform k-fold cross-validation using a for loop
+for (i in seq_along(bank_split$splits)) {
+  fold = bank_split$splits[[i]]
+  
+  # Train the model on each fold
+  model = glm(Exited ~ ., data = analysis(fold), family = "binomial")
+  
+  # Make predictions on the assessment set (test set)
+  preds = predict(model, newdata = assessment(fold), type = "response")
+  
+  # Convert probabilities to binary predictions based on a threshold (e.g., 0.5)
+  binary_preds = ifelse(preds > 0.5, 1, 0)
+  
+  # Create the confusion matrix for each fold
+  confusion_matrix = table(assessment(fold)$Exited, binary_preds)
+  
+  # Store the confusion matrix in the list
+  confusion_matrices[[i]] = confusion_matrix
+  
+  # Calculate AUC for each fold
+  roc_values = roc(assessment(fold)$Exited, preds)
+  auc_fold = auc(roc_values)
+  auc_values[i] = auc_fold
+  precision_values[i] = confusionMatrix(confusion_matrices[[i]])$byClass["Precision"]
+  recall_values[i] = confusionMatrix(confusion_matrices[[i]])$byClass["Recall"]
+  f1_score_values[i] = confusionMatrix(confusion_matrices[[i]])$byClass["F1"]
+  accuracy_values[i] = confusionMatrix(confusion_matrices[[i]])$overall["Accuracy"]
+}
+
+# Calculate average metrics
+avg_auc = mean(auc_values)
+avg_precision = mean(precision_values)
+avg_recall = mean(recall_values)
+avg_f1_score = mean(f1_score_values)
+avg_accuracy = mean(accuracy_values)
+
+# Display the average metrics
+paste("Evaluation Metrics of Cross-Validated Logistic Regression Model are: ")
+cat("Average AUC:", avg_auc, "\n")
+cat("Average Precision:", avg_precision, "\n")
+cat("Average Recall:", avg_recall, "\n")
+cat("Average F1-score:", avg_f1_score, "\n")
+cat("Average Accuracy:", avg_accuracy, "\n")
+
+# Create a data frame with performance metrics
+performance_df = data.frame(
+  Metric = c("AUC", "Precision", "Recall", "F1-score", "Accuracy"),
+  Average_Value = c(avg_auc, avg_precision, avg_recall, avg_f1_score, avg_accuracy)
+)
+
+ggplot(performance_df, aes(x = Metric, y = Average_Value, group = 1)) +
+geom_line() +
+  geom_point() +
+  labs(title = "Average Performance Metrics Across Folds", y = "Average Value") +
+  theme_minimal()
+
+```
+
+
+#### Cross-Validated Logistic Regression Model Evaluation
+
+The cross-validated logistic regression model shows consistent high performance across multiple evaluation metrics, average AUC (Area Under the Curve) values for each fold are consistently high, indicating excellent model performance in distinguishing between churn and non-churn instances. Precision, Recall, F1-score, and Accuracy metrics are exceptionally high across folds, indicating a robust model performance in predicting both churn and non-churn cases.
+
+#### Comparison: Cross-Validated Logistic Regression Model Vs. logistic regression model
+
+Comparing the cross-validated model's metrics with the earlier logistic regression model, both models exhibit exceptional performance. The cross-validated model demonstrates slightly improved average metrics compared to the single logistic regression model, showcasing its robustness and reliability across multiple folds. This consistency strengthens confidence in the model's predictive capability and highlights its stability when applied to different subsets of the data.
+
+
+
+#### Random Forest Feature Importance Analysis for Churn Prediction
+
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+
+# Load required library
+library(randomForest)
+
+
+# Create Random Forest model
+rf_model <- randomForest(Exited ~ ., data = analysis(fold), importance = TRUE)
+
+# Get feature importance scores
+importance_scores <- importance(rf_model)
+#importance_scores
+
+# Plot feature importance
+varImpPlot(rf_model, type = 1, main = "Random Forest Feature Importance")
+#varImpPlot
+
+```
+
+
+
+The Random Forest model's feature importance analysis reveals key predictors influencing customer churn:
+
+Age emerges as a significant factor, indicating its strong influence on churn likelihood. Additionally, Balance, NumOfProducts, and the 'Complain' variable surprisingly hold substantial importance in predicting churn. Interaction terms like Balance_NumOfProducts, Age_ActiveMember, and Balance_EstimatedSalary_Ratio also contribute significantly to churn prediction, showcasing the complexity of factors impacting customer attrition within the dataset. Moreover, IsActiveMember appears as a crucial factor influencing churn rates, collectively highlighting the pivotal predictors considered within the model's evaluation of churn.
+
+
+## Conclusion 
+
+In identifying influential factors driving customer churn within the banking context, this study conducted an in-depth exploration. Visualizations meticulously dissected product engagement, card usage, geographic distribution, customer complaints, and tenure, serving as integral components linked to customer attrition. Leveraging these insights, predictive models were constructed utilizing demographic and banking variables using sophisticated modeling techniques like logistic regression and random forest. Analyzing customer churn in banking unveils vital insights essential for strengthening customer loyalty. By understanding customer behavior across demographics and regions, tailored retention strategies can be developed, addressing the specific needs of diverse customer groups. Prioritizing quick complaint resolution and delivering personalized services based on identified satisfaction patterns can significantly reduce churn rates and foster lasting customer loyalty.
+
+#### Scope and Generalizability
+
+This study provides nuanced insights valuable for devising effective customer retention strategies in industries dealing with similar challenges. However, to broaden the study's applicability and ensure its reliability across diverse business landscapes, further validation across different datasets or industry domains is recommended. Strengthening feature engineering methodologies and refining the models through advanced techniques could significantly enhance their predictive accuracy and relevance across varied business scenarios, thereby reinforcing the study's credibility and practical usefulness.
+
+#### Limitations and Possibilities for improvement.
+
+While the analysis provided valuable insights into customer churn within the banking sector, certain limitations warrant consideration. The scope of the analysis primarily focused on demographic and banking variables, potentially overlooking broader external factors influencing churn. Additionally, constraints within the dataset and the application of conventional modeling techniques like logistic regression and random forest might limit the depth of insights and predictive accuracy. To enhance the analysis, incorporating more diverse datasets, exploring advanced modeling approaches beyond traditional techniques, and considering external factors such as economic conditions could offer a more comprehensive understanding of customer churn behavior. These improvements could potentially enrich the depth and robustness of the analysis, enabling a more holistic view of factors driving customer attrition.
+
+
